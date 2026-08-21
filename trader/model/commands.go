@@ -1,3 +1,5 @@
 package model
 
-type CheckStatusMessage struct{}
+type MonitoringStrategyMessage struct{}
+
+type GetStartegyPlannedPositionRequest struct{}

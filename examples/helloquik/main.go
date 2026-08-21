@@ -35,7 +35,7 @@ func run() error {
 		return fmt.Errorf("Unable to start node %w", err)
 	}
 
-	node.SpawnRegister("quik",
+	node.SpawnRegister(gen.Atom("quik"),
 		func() gen.ProcessBehavior {
 			return brokerquik.NewQuikBroker(port)
 		},

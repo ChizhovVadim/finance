@@ -2,6 +2,7 @@ package brokerquik
 
 import (
 	"finance/trader/model"
+	"math"
 	"net"
 	"strconv"
 	"time"
@@ -38,4 +39,11 @@ func timeToQuikTime(time time.Time) int64 {
 func calculateStartTransId() int64 {
 	var hour, min, sec = time.Now().Clock()
 	return 60*(60*int64(hour)+int64(min)) + int64(sec)
+}
+
+func formatPrice(priceStep float64, pricePrecision int, price float64) string {
+	if priceStep != 0 {
+		price = math.Round(price/priceStep) * priceStep
+	}
+	return strconv.FormatFloat(price, 'f', pricePrecision, 64)
 }

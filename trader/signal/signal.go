@@ -3,7 +3,6 @@ package signal
 import (
 	"finance/trader/model"
 	"fmt"
-	"iter"
 	"time"
 
 	"ergo.services/ergo/act"
@@ -16,8 +15,8 @@ type IAdvisor interface {
 	Add(dt time.Time, price float64) (prediction float64, ok bool)
 }
 
-type ICandleReader interface {
-	Candles(candleInterval string, securityCode string) iter.Seq2[model.Candle, error]
+type IHistoryMarketData interface {
+	Load(security model.Security, interval string) ([]model.Candle, error)
 }
 
 type Signal struct {
@@ -27,6 +26,7 @@ type Signal struct {
 	candleInterval          string
 	advisorFactory          func() (IAdvisor, error)
 	marketData              gen.Atom
+	historyMarketData       IHistoryMarketData
 	start                   time.Time
 	advisor                 IAdvisor
 	signalUpdatedEventToken gen.Ref
@@ -39,13 +39,15 @@ func NewSignal(
 	candleInterval string,
 	advisorFactory func() (IAdvisor, error),
 	marketData gen.Atom,
+	historyMarketData IHistoryMarketData,
 ) *Signal {
 	return &Signal{
-		name:           name,
-		security:       security,
-		candleInterval: candleInterval,
-		advisorFactory: advisorFactory,
-		marketData:     marketData,
+		name:              name,
+		security:          security,
+		candleInterval:    candleInterval,
+		advisorFactory:    advisorFactory,
+		marketData:        marketData,
+		historyMarketData: historyMarketData,
 	}
 }
 
@@ -57,6 +59,14 @@ func (a *Signal) Init(args ...any) error {
 		return err
 	}
 	a.advisor = advisor
+
+	if a.historyMarketData != nil {
+		historyCandles, err := a.historyMarketData.Load(a.security, a.candleInterval)
+		if err != nil {
+			return err
+		}
+		a.addHistoryCandles(historyCandles)
+	}
 
 	signalUpdatedEventToken, err := a.RegisterEvent(SignalUpdatedEventName, gen.EventOptions{Buffer: 1})
 	if err != nil {
@@ -72,35 +82,23 @@ func (a *Signal) Init(args ...any) error {
 		return err
 	}
 
-	err = a.Send(a.marketData, model.SubscribeCandlesRequest{
+	resp, err := a.Call(a.marketData, model.SubscribeCandlesRequest{
 		Ssecurity: a.security,
 		Timeframe: a.candleInterval,
 	})
 	if err != nil {
 		return err
 	}
+	if errResponse, ok := resp.(error); ok {
+		return errResponse
+	}
 
 	a.Log().Info("started. init signal: %v", a.currentSignal)
 	return nil
 }
 
-func (s *Signal) addHistoryCandles(historyCandles iter.Seq2[model.Candle, error]) error {
-	var (
-		firstCandle model.Candle
-		lastCandle  model.Candle
-		size        int
-	)
-	for candle, err := range historyCandles {
-		if err != nil {
-			return err
-		}
-
-		if size == 0 {
-			firstCandle = candle
-		}
-		lastCandle = candle
-		size += 1
-
+func (s *Signal) addHistoryCandles(historyCandles []model.Candle) {
+	for _, candle := range historyCandles {
 		var prediction, ok = s.advisor.Add(candle.DateTime, candle.ClosePrice)
 		if !ok {
 			continue
@@ -112,13 +110,14 @@ func (s *Signal) addHistoryCandles(historyCandles iter.Seq2[model.Candle, error]
 			Value:    prediction,
 		}
 	}
-	if size == 0 {
+	if len(historyCandles) == 0 {
 		s.Log().Warning("History candles empty")
 	} else {
 		s.Log().Debug("History candles %v %v %v",
-			size, firstCandle, lastCandle)
+			len(historyCandles),
+			historyCandles[0],
+			historyCandles[len(historyCandles)-1])
 	}
-	return nil
 }
 
 func (a *Signal) HandleEvent(event gen.MessageEvent) error {
@@ -152,6 +151,8 @@ func (a *Signal) onCandle(candle model.Candle) {
 	}
 	if signalValueChanged {
 		a.Log().Info("New signal %v", a.currentSignal)
+	} else {
+		a.Log().Debug("New signal %v", a.currentSignal)
 	}
 	a.SendEvent(SignalUpdatedEventName, a.signalUpdatedEventToken, model.SignalUpdated{
 		Signal: a.currentSignal,

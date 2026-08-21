@@ -23,7 +23,6 @@ type Strategy struct {
 	security        model.Security
 	portfolio       model.Portfolio
 	sizePolicy      SizePolicy
-	broker          gen.Atom
 	amountAvailable float64
 	plannedPosition int
 	basePrice       model.Signal
@@ -34,20 +33,18 @@ func NewStrategy(
 	security model.Security,
 	portfolio model.Portfolio,
 	sizePolicy SizePolicy,
-	broker gen.Atom,
 ) gen.ProcessBehavior {
 	return &Strategy{
 		signalName: signalName,
 		security:   security,
 		portfolio:  portfolio,
 		sizePolicy: sizePolicy,
-		broker:     broker,
 	}
 }
 
 func (s *Strategy) Init(args ...any) error {
 	// init amountAvailable
-	resp, err := s.Call(s.broker, model.GetPortfolioLimitsRequest{
+	resp, err := s.Call(s.portfolio.Broker, model.GetPortfolioLimitsRequest{
 		Portfolio: s.portfolio,
 	})
 	if err != nil {
@@ -63,7 +60,7 @@ func (s *Strategy) Init(args ...any) error {
 	}
 
 	// init broker position
-	resp, err = s.Call(gen.Atom("broker"), model.GetPositionRequest{
+	resp, err = s.Call(s.portfolio.Broker, model.GetPositionRequest{
 		Portfolio: s.portfolio,
 		Security:  s.security,
 	})
@@ -84,9 +81,23 @@ func (s *Strategy) Init(args ...any) error {
 		return err
 	}
 
+	s.Send(gen.Atom("monitoring"), model.MonitoringStrategyMessage{})
+
 	s.Log().Info("started. amount: %v amountAvailable: %v position: %v",
 		limits.StartLimitOpenPos, s.amountAvailable, s.plannedPosition)
 	return nil
+}
+
+func (s *Strategy) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error) {
+	switch req.(type) {
+	case model.GetStartegyPlannedPositionRequest:
+		return model.PlannedPosition{
+			Portfolio: s.portfolio,
+			Security:  s.security,
+			Planned:   s.plannedPosition,
+		}, nil
+	}
+	return gen.ErrUnsupported, nil
 }
 
 func (s *Strategy) HandleEvent(event gen.MessageEvent) error {
@@ -119,9 +130,13 @@ func (s *Strategy) onSignal(signal model.Signal) {
 	}
 	var expectedBrokerPos = s.plannedPosition
 	s.plannedPosition += volume
-	s.Send(gen.Atom("monitoring"), model.CheckStatusMessage{})
-	_ = expectedBrokerPos
-	s.Call(s.broker, model.RegisterOrderRequest{
+	s.Send(gen.Atom("monitoring"), model.MonitoringStrategyMessage{})
+	if !s.checkBrokerPos(expectedBrokerPos) {
+		// Ничего не делаем. Зовем старшего.
+		s.Log().Warning("check position failed")
+		return
+	}
+	s.Call(s.portfolio.Broker, model.RegisterOrderRequest{
 		Order: model.Order{
 			Portfolio: s.portfolio,
 			Security:  s.security,
@@ -129,6 +144,22 @@ func (s *Strategy) onSignal(signal model.Signal) {
 			Price:     priceWithSlippage(signal.Price, volume),
 		},
 	})
+}
+
+func (s *Strategy) checkBrokerPos(expected int) bool {
+	resp, err := s.Call(s.portfolio.Broker, model.GetPositionRequest{
+		Portfolio: s.portfolio,
+		Security:  s.security,
+	})
+	if err != nil {
+		return false
+	}
+	if errResponse, ok := resp.(error); ok {
+		_ = errResponse
+		return false
+	}
+	var brokerPos = int(resp.(float64))
+	return brokerPos == expected
 }
 
 func (s *Strategy) HandleInspect(from gen.PID, item ...string) map[string]string {

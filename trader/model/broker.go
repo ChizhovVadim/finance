@@ -1,8 +1,10 @@
 package model
 
+import "ergo.services/ergo/gen"
+
 type Portfolio struct {
-	// MultyBroker использует это поле для маршрутизации клиентов
 	Client    string
+	Broker    gen.Atom
 	Firm      string
 	Portfolio string
 }

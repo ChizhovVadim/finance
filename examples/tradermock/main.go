@@ -31,16 +31,15 @@ func run() error {
 		return fmt.Errorf("Unable to start node %w", err)
 	}
 
-	node.SpawnRegister("monitoring", monitoring.NewMonitoring, gen.ProcessOptions{})
-	node.SpawnRegister("broker", brokermock.FactoryMockBroker, gen.ProcessOptions{})
-	node.SpawnRegister("signal", signalmock.FactorySignalMock, gen.ProcessOptions{})
-	node.SpawnRegister("strategy", func() gen.ProcessBehavior {
+	node.SpawnRegister(gen.Atom("monitoring"), monitoring.NewMonitoring, gen.ProcessOptions{})
+	node.SpawnRegister(gen.Atom("broker"), brokermock.FactoryMockBroker, gen.ProcessOptions{})
+	node.SpawnRegister(gen.Atom("signal"), signalmock.FactorySignalMock, gen.ProcessOptions{})
+	node.SpawnRegister(gen.Atom("strategy"), func() gen.ProcessBehavior {
 		return strategy.NewStrategy(
 			"mock",
 			model.Security{Name: "Si-9.26", Code: "SiU6", Lever: 1},
-			model.Portfolio{Client: "paper", Firm: "SPBFUT", Portfolio: "test"},
+			model.Portfolio{Broker: gen.Atom("broker"), Firm: "SPBFUT", Portfolio: "test"},
 			strategy.SizePolicy{LongLever: 9, ShortLever: 9, MaxLever: 6, Weight: 1},
-			gen.Atom("broker"),
 		)
 	}, gen.ProcessOptions{})
 

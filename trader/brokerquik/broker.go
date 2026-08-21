@@ -102,7 +102,6 @@ func (b *QuikBroker) handleCallback(cj CallbackJson) {
 func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error) {
 	b.Log().Debug("received call from %s: %v", from, req)
 	switch req := req.(type) {
-	case model.BrokerMessageInfoRequest:
 	case model.GetPortfolioLimitsRequest:
 		b.makeRequest("getPortfolioInfoEx",
 			fmt.Sprintf("%v|%v|%v",
@@ -116,7 +115,18 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 					req.Portfolio.Firm, req.Portfolio.Portfolio, req.Security.Code, 0))
 			// async request
 			return nil, nil
+		} else {
+			return fmt.Errorf("not supported classcode %v", req.Security.ClassCode), nil
 		}
+	case model.RegisterOrderRequest:
+		var order = req.Order
+		var sPrice = formatPrice(order.Security.PriceStep, order.Security.PricePrecision, order.Price)
+		b.Log().Info("RegisterOrder client: %v portfolio: %v security: %v quantity: %v price: %v",
+			order.Portfolio.Client, order.Portfolio.Portfolio, order.Security.Name, order.Volume, sPrice)
+		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
+		return true, nil
+	case model.GetLastCandlesRequest:
+		return fmt.Errorf("not implemented"), nil
 	case model.SubscribeCandlesRequest:
 		var candleInterval, ok = timeframeCodes[req.Timeframe]
 		if !ok {
@@ -125,7 +135,7 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		b.makeRequest("subscribe_to_candles",
 			fmt.Sprintf("%v|%v|%v",
 				req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
-		// Чтобы не заблокироваться, не ждем ответа от Quik, а сразу продолжаем работу.
+		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
 		return true, nil
 	}
 	return gen.ErrUnsupported, nil
