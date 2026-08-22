@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"finance/trader/model"
 	"fmt"
+	"strconv"
 	"time"
 
 	"ergo.services/ergo/act"
@@ -23,6 +24,12 @@ type QuikBroker struct {
 	nextTransactionId        int64
 	candleFinishedEventToken gen.Ref
 	mainConnId               gen.Alias
+	queriesInProgress        map[int64]query
+}
+
+type query struct {
+	from gen.PID
+	ref  gen.Ref
 }
 
 func NewQuikBroker(
@@ -32,6 +39,7 @@ func NewQuikBroker(
 		port:              port,
 		nextRequestId:     1,
 		nextTransactionId: calculateStartTransId(),
+		queriesInProgress: make(map[int64]query),
 	}
 }
 
@@ -71,16 +79,33 @@ func (b *QuikBroker) Init(args ...any) error {
 func (b *QuikBroker) HandleMessage(from gen.PID, message any) error {
 	switch message := message.(type) {
 	case model.BrokerMessageInfoRequest:
-		b.makeRequest("message", message.Message)
+		_ = b.makeRequest(from, gen.Ref{}, "message", message.Message)
 	case CallbackJson:
 		b.handleCallback(message)
 	case messageTCP:
-		b.handleResponse(message)
+		err := b.handleResponse(message)
+		if err != nil {
+			b.Log().Warning("handleResponse %v", err)
+		}
 	}
 	return nil
 }
 
-func (b *QuikBroker) handleResponse(resp messageTCP) {}
+func (b *QuikBroker) handleResponse(resp messageTCP) error {
+	var respJson ResponseJson2
+	var err = json.Unmarshal(resp.Data, &respJson)
+	if err != nil {
+		return err
+	}
+	var query, ok = b.queriesInProgress[respJson.Id]
+	if !ok {
+		return fmt.Errorf("query not found %v", respJson.Id)
+	}
+	_ = query
+	// TODO b.SendResponse()
+	delete(b.queriesInProgress, respJson.Id)
+	return nil
+}
 
 func (b *QuikBroker) handleCallback(cj CallbackJson) {
 	if cj.Command == "NewCandle" {
@@ -103,16 +128,22 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 	b.Log().Debug("received call from %s: %v", from, req)
 	switch req := req.(type) {
 	case model.GetPortfolioLimitsRequest:
-		b.makeRequest("getPortfolioInfoEx",
+		err := b.makeRequest(from, ref, "getPortfolioInfoEx",
 			fmt.Sprintf("%v|%v|%v",
 				req.Portfolio.Firm, req.Portfolio.Portfolio, 0))
+		if err != nil {
+			return err, nil
+		}
 		// async request
 		return nil, nil
 	case model.GetPositionRequest:
 		if req.Security.ClassCode == model.FuturesClassCode {
-			b.makeRequest("getFuturesHolding",
+			err := b.makeRequest(from, ref, "getFuturesHolding",
 				fmt.Sprintf("%v|%v|%v|%v",
 					req.Portfolio.Firm, req.Portfolio.Portfolio, req.Security.Code, 0))
+			if err != nil {
+				return err, nil
+			}
 			// async request
 			return nil, nil
 		} else {
@@ -123,18 +154,53 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		var sPrice = formatPrice(order.Security.PriceStep, order.Security.PricePrecision, order.Price)
 		b.Log().Info("RegisterOrder client: %v portfolio: %v security: %v quantity: %v price: %v",
 			order.Portfolio.Client, order.Portfolio.Portfolio, order.Security.Name, order.Volume, sPrice)
+		var transId = b.nextRequestId
+		b.nextTransactionId += 1
+		var trans = map[string]string{
+			"TRANS_ID":    fmt.Sprintf("%v", transId),
+			"ACTION":      "NEW_ORDER",
+			"SECCODE":     order.Security.Code,
+			"CLASSCODE":   order.Security.ClassCode,
+			"ACCOUNT":     order.Portfolio.Portfolio,
+			"PRICE":       sPrice,
+			"CLIENT_CODE": fmt.Sprintf("%v", transId),
+		}
+		if order.Volume > 0 {
+			trans["OPERATION"] = "B"
+			trans["QUANTITY"] = strconv.Itoa(order.Volume)
+		} else {
+			trans["OPERATION"] = "S"
+			trans["QUANTITY"] = strconv.Itoa(-order.Volume)
+		}
+		err := b.makeRequest(from, gen.Ref{}, "sendTransaction", trans)
+		if err != nil {
+			return err, nil
+		}
 		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
 		return true, nil
 	case model.GetLastCandlesRequest:
-		return fmt.Errorf("not implemented"), nil
+		var candleInterval, ok = timeframeCodes[req.Timeframe]
+		if !ok {
+			return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
+		}
+		err := b.makeRequest(from, ref, "get_candles_from_data_source",
+			fmt.Sprintf("%v|%v|%v|%v", req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval, 5_000))
+		if err != nil {
+			return err, nil
+		}
+		// async request
+		return nil, nil
 	case model.SubscribeCandlesRequest:
 		var candleInterval, ok = timeframeCodes[req.Timeframe]
 		if !ok {
 			return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
 		}
-		b.makeRequest("subscribe_to_candles",
+		err := b.makeRequest(from, gen.Ref{}, "subscribe_to_candles",
 			fmt.Sprintf("%v|%v|%v",
 				req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
+		if err != nil {
+			return err, nil
+		}
 		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
 		return true, nil
 	}
@@ -145,7 +211,7 @@ func (b *QuikBroker) Terminate(reason error) {
 	b.Log().Info("terminated with reason: %s", reason)
 }
 
-func (b *QuikBroker) makeRequest(cmd string, data any) {
+func (b *QuikBroker) makeRequest(from gen.PID, ref gen.Ref, cmd string, data any) error {
 	var r = RequestJson{
 		Id:          b.nextRequestId,
 		Command:     cmd,
@@ -156,7 +222,15 @@ func (b *QuikBroker) makeRequest(cmd string, data any) {
 
 	bytes, err := json.Marshal(r)
 	if err != nil {
-		return
+		return err
 	}
-	b.Send(b.mainConnId, messageTCP{Data: bytes})
+	err = b.Send(b.mainConnId, messageTCP{Data: bytes})
+	if err != nil {
+		return err
+	}
+	b.queriesInProgress[r.Id] = query{
+		from: from,
+		ref:  ref,
+	}
+	return nil
 }

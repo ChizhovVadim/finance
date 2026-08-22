@@ -74,6 +74,18 @@ func (a *Signal) Init(args ...any) error {
 	}
 	a.signalUpdatedEventToken = signalUpdatedEventToken
 
+	resp, err := a.Call(a.marketData, model.GetLastCandlesRequest{
+		Ssecurity: a.security,
+		Timeframe: a.candleInterval,
+	})
+	if err != nil {
+		return err
+	}
+	if errResponse, ok := resp.(error); ok {
+		return errResponse
+	}
+	a.addHistoryCandles(resp.([]model.Candle))
+
 	_, err = a.MonitorEvent(gen.Event{
 		Name: gen.Atom("candleFinished"),
 		Node: a.Node().Name(),
@@ -82,7 +94,7 @@ func (a *Signal) Init(args ...any) error {
 		return err
 	}
 
-	resp, err := a.Call(a.marketData, model.SubscribeCandlesRequest{
+	resp, err = a.Call(a.marketData, model.SubscribeCandlesRequest{
 		Ssecurity: a.security,
 		Timeframe: a.candleInterval,
 	})
