@@ -1,6 +1,7 @@
 package brokerquik
 
 import (
+	"errors"
 	"finance/trader/model"
 	"math"
 	"net"
@@ -46,4 +47,21 @@ func formatPrice(priceStep float64, pricePrecision int, price float64) string {
 		price = math.Round(price/priceStep) * priceStep
 	}
 	return strconv.FormatFloat(price, 'f', pricePrecision, 64)
+}
+
+func isToday(d time.Time) bool {
+	var y1, m1, d1 = d.Date()
+	var y2, m2, d2 = time.Now().Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
+}
+
+func parseFloat(a any) (float64, error) {
+	switch v := a.(type) {
+	case float64:
+		return v, nil
+	case string:
+		return strconv.ParseFloat(v, 64)
+	default:
+		return 0, errors.New("unknown type")
+	}
 }

@@ -19,7 +19,7 @@ type SizePolicy struct {
 
 type Strategy struct {
 	act.Actor
-	signalName      string
+	eventName       gen.Atom
 	security        model.Security
 	portfolio       model.Portfolio
 	sizePolicy      SizePolicy
@@ -28,17 +28,19 @@ type Strategy struct {
 	basePrice       model.Signal
 }
 
-func NewStrategy(
-	signalName string,
+func FactoryStrategy(
+	eventName gen.Atom,
 	security model.Security,
 	portfolio model.Portfolio,
 	sizePolicy SizePolicy,
-) gen.ProcessBehavior {
-	return &Strategy{
-		signalName: signalName,
-		security:   security,
-		portfolio:  portfolio,
-		sizePolicy: sizePolicy,
+) func() gen.ProcessBehavior {
+	return func() gen.ProcessBehavior {
+		return &Strategy{
+			eventName:  eventName,
+			security:   security,
+			portfolio:  portfolio,
+			sizePolicy: sizePolicy,
+		}
 	}
 }
 
@@ -74,7 +76,7 @@ func (s *Strategy) Init(args ...any) error {
 
 	// subscribe
 	_, err = s.MonitorEvent(gen.Event{
-		Name: gen.Atom("signalUpdated"),
+		Name: s.eventName,
 		Node: s.Node().Name(),
 	})
 	if err != nil {
@@ -83,7 +85,7 @@ func (s *Strategy) Init(args ...any) error {
 
 	s.Send(gen.Atom("monitoring"), model.MonitoringStrategyMessage{})
 
-	s.Log().Info("started. amount: %v amountAvailable: %v position: %v",
+	s.Log().Info("started amount: %v amountAvailable: %v position: %v",
 		limits.StartLimitOpenPos, s.amountAvailable, s.plannedPosition)
 	return nil
 }
@@ -110,10 +112,6 @@ func (s *Strategy) HandleEvent(event gen.MessageEvent) error {
 }
 
 func (s *Strategy) onSignal(signal model.Signal) {
-	// стратегия следит только за своими сигналами
-	if !(signal.Name == s.signalName) {
-		return
-	}
 	// считаем, что сигнал слишком старый
 	if signal.Deadline.Before(time.Now()) {
 		return

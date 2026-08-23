@@ -13,18 +13,18 @@ type RequestJson struct {
 }
 
 type ResponseJson struct {
-	Id          int64   `json:"id"`
-	Command     string  `json:"cmd"`
-	CreatedTime float64 `json:"t"`
-	Data        any     `json:"data"`
-	LuaError    string  `json:"lua_error"`
+	Id          int64           `json:"id"`
+	Command     string          `json:"cmd"`
+	CreatedTime float64         `json:"t"`
+	Data        json.RawMessage `json:"data"`
+	LuaError    string          `json:"lua_error"`
 }
 
 type CallbackJson struct {
-	Command     string           `json:"cmd"`
-	CreatedTime float64          `json:"t"`
-	Data        *json.RawMessage `json:"data"`
-	LuaError    string           `json:"lua_error"`
+	Command     string          `json:"cmd"`
+	CreatedTime float64         `json:"t"`
+	Data        json.RawMessage `json:"data"`
+	LuaError    string          `json:"lua_error"`
 }
 
 const (

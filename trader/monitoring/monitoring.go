@@ -17,14 +17,14 @@ type Monitoring struct {
 	strategies               map[gen.PID]struct{}
 }
 
-func NewMonitoring() gen.ProcessBehavior {
+func FactoryMonitoring() gen.ProcessBehavior {
 	return &Monitoring{
 		strategies: make(map[gen.PID]struct{}),
 	}
 }
 
 func (a *Monitoring) Init(args ...any) error {
-	a.Log().Info("started.")
+	a.Log().Info("started")
 	return nil
 }
 

@@ -61,12 +61,12 @@ type RegisterOrderRequest struct {
 	Order Order
 }
 
-type GetLastCandlesRequest struct {
+type GetCandleFinishedEvent struct {
 	Ssecurity Security
 	Timeframe string
 }
 
-type SubscribeCandlesRequest struct {
+type GetLastCandlesRequest struct {
 	Ssecurity Security
 	Timeframe string
 }
