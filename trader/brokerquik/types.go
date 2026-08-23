@@ -20,31 +20,11 @@ type ResponseJson struct {
 	LuaError    string  `json:"lua_error"`
 }
 
-type ResponseJson2 struct {
-	Id          int64            `json:"id"`
-	Command     string           `json:"cmd"`
-	CreatedTime float64          `json:"t"`
-	Data        *json.RawMessage `json:"data"`
-	LuaError    string           `json:"lua_error"`
-}
-
 type CallbackJson struct {
 	Command     string           `json:"cmd"`
 	CreatedTime float64          `json:"t"`
 	Data        *json.RawMessage `json:"data"`
 	LuaError    string           `json:"lua_error"`
-}
-
-type Transaction struct {
-	TRANS_ID    string
-	ACTION      string
-	ACCOUNT     string
-	CLASSCODE   string
-	SECCODE     string
-	QUANTITY    string
-	OPERATION   string
-	PRICE       string
-	CLIENT_CODE string
 }
 
 const (

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"finance/trader/model"
 	"fmt"
-	"strconv"
 	"time"
 
 	"ergo.services/ergo/act"
@@ -28,8 +27,9 @@ type QuikBroker struct {
 }
 
 type query struct {
-	from gen.PID
-	ref  gen.Ref
+	from    gen.PID
+	ref     gen.Ref
+	command string
 }
 
 func NewQuikBroker(
@@ -79,7 +79,7 @@ func (b *QuikBroker) Init(args ...any) error {
 func (b *QuikBroker) HandleMessage(from gen.PID, message any) error {
 	switch message := message.(type) {
 	case model.BrokerMessageInfoRequest:
-		_ = b.makeRequest(from, gen.Ref{}, "message", message.Message)
+		_ = b.makeRequest(from, gen.Ref{}, RequestMessage(message.Message))
 	case CallbackJson:
 		b.handleCallback(message)
 	case messageTCP:
@@ -92,7 +92,7 @@ func (b *QuikBroker) HandleMessage(from gen.PID, message any) error {
 }
 
 func (b *QuikBroker) handleResponse(resp messageTCP) error {
-	var respJson ResponseJson2
+	var respJson ResponseJson
 	var err = json.Unmarshal(resp.Data, &respJson)
 	if err != nil {
 		return err
@@ -101,9 +101,15 @@ func (b *QuikBroker) handleResponse(resp messageTCP) error {
 	if !ok {
 		return fmt.Errorf("query not found %v", respJson.Id)
 	}
-	_ = query
-	// TODO b.SendResponse()
 	delete(b.queriesInProgress, respJson.Id)
+	if respJson.LuaError != "" {
+		// Уже вернули ответ клиенту в HandleCall
+		if query.ref.Node == "" {
+			return nil
+		}
+		return b.SendResponse(query.from, query.ref, fmt.Errorf("lua error: %v", respJson.LuaError))
+	}
+	// TODO b.SendResponse()
 	return nil
 }
 
@@ -128,9 +134,8 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 	b.Log().Debug("received call from %s: %v", from, req)
 	switch req := req.(type) {
 	case model.GetPortfolioLimitsRequest:
-		err := b.makeRequest(from, ref, "getPortfolioInfoEx",
-			fmt.Sprintf("%v|%v|%v",
-				req.Portfolio.Firm, req.Portfolio.Portfolio, 0))
+		err := b.makeRequest(from, ref,
+			RequestGetPortfolioInfoEx(req.Portfolio.Firm, req.Portfolio.Portfolio, 0))
 		if err != nil {
 			return err, nil
 		}
@@ -138,9 +143,8 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		return nil, nil
 	case model.GetPositionRequest:
 		if req.Security.ClassCode == model.FuturesClassCode {
-			err := b.makeRequest(from, ref, "getFuturesHolding",
-				fmt.Sprintf("%v|%v|%v|%v",
-					req.Portfolio.Firm, req.Portfolio.Portfolio, req.Security.Code, 0))
+			err := b.makeRequest(from, ref,
+				RequestGetFuturesHolding(req.Portfolio.Firm, req.Portfolio.Portfolio, req.Security.Code, 0))
 			if err != nil {
 				return err, nil
 			}
@@ -156,23 +160,8 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 			order.Portfolio.Client, order.Portfolio.Portfolio, order.Security.Name, order.Volume, sPrice)
 		var transId = b.nextRequestId
 		b.nextTransactionId += 1
-		var trans = map[string]string{
-			"TRANS_ID":    fmt.Sprintf("%v", transId),
-			"ACTION":      "NEW_ORDER",
-			"SECCODE":     order.Security.Code,
-			"CLASSCODE":   order.Security.ClassCode,
-			"ACCOUNT":     order.Portfolio.Portfolio,
-			"PRICE":       sPrice,
-			"CLIENT_CODE": fmt.Sprintf("%v", transId),
-		}
-		if order.Volume > 0 {
-			trans["OPERATION"] = "B"
-			trans["QUANTITY"] = strconv.Itoa(order.Volume)
-		} else {
-			trans["OPERATION"] = "S"
-			trans["QUANTITY"] = strconv.Itoa(-order.Volume)
-		}
-		err := b.makeRequest(from, gen.Ref{}, "sendTransaction", trans)
+		err := b.makeRequest(from, gen.Ref{},
+			RequestSendTransaction(transId, order.Security.Code, order.Security.ClassCode, order.Portfolio.Portfolio, sPrice, fmt.Sprintf("%v", transId), order.Volume))
 		if err != nil {
 			return err, nil
 		}
@@ -183,8 +172,9 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		if !ok {
 			return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
 		}
-		err := b.makeRequest(from, ref, "get_candles_from_data_source",
-			fmt.Sprintf("%v|%v|%v|%v", req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval, 5_000))
+		const candleCount = 5_000 // Если не указывать размер, то может прийти слишком много баров и unmarshal большой json
+		err := b.makeRequest(from, ref,
+			RequestGetCandlesFromDataSource(req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval, candleCount))
 		if err != nil {
 			return err, nil
 		}
@@ -195,9 +185,8 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		if !ok {
 			return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
 		}
-		err := b.makeRequest(from, gen.Ref{}, "subscribe_to_candles",
-			fmt.Sprintf("%v|%v|%v",
-				req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
+		err := b.makeRequest(from, gen.Ref{},
+			RequestSubscribeToCandles(req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
 		if err != nil {
 			return err, nil
 		}
@@ -211,11 +200,11 @@ func (b *QuikBroker) Terminate(reason error) {
 	b.Log().Info("terminated with reason: %s", reason)
 }
 
-func (b *QuikBroker) makeRequest(from gen.PID, ref gen.Ref, cmd string, data any) error {
+func (b *QuikBroker) makeRequest(from gen.PID, ref gen.Ref, requestQuik RequestQuik) error {
 	var r = RequestJson{
 		Id:          b.nextRequestId,
-		Command:     cmd,
-		Data:        data,
+		Command:     requestQuik.Command,
+		Data:        requestQuik.Data,
 		CreatedTime: timeToQuikTime(time.Now()),
 	}
 	b.nextRequestId += 1
@@ -229,8 +218,9 @@ func (b *QuikBroker) makeRequest(from gen.PID, ref gen.Ref, cmd string, data any
 		return err
 	}
 	b.queriesInProgress[r.Id] = query{
-		from: from,
-		ref:  ref,
+		from:    from,
+		ref:     ref,
+		command: r.Command,
 	}
 	return nil
 }
