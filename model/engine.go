@@ -5,14 +5,10 @@ import (
 )
 
 type Signal struct {
+	Name     string
 	Deadline time.Time
 	Price    float64
 	Value    float64
 }
 
-type PlannedPosition struct {
-	Deadline  time.Time
-	Portfolio Portfolio
-	Security  Security
-	Planned   int
-}
+type GetStatusRequest struct{}

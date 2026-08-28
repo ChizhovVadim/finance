@@ -1,10 +1,10 @@
-package model
+package moex
 
 import "time"
 
 const FuturesClassCode = "SPBFUT"
 
-var MoexTimeZone = initMoscow()
+var TimeZone = initMoscow()
 
 func initMoscow() *time.Location {
 	var loc, err = time.LoadLocation("Europe/Moscow")

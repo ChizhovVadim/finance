@@ -3,12 +3,14 @@ package brokerquik
 import (
 	"encoding/json"
 	"errors"
-	"finance/trader/model"
 	"fmt"
 	"time"
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
+
+	"finance/internal/moex"
+	"finance/model"
 )
 
 type messageTCP struct {
@@ -17,7 +19,6 @@ type messageTCP struct {
 
 type QuikBroker struct {
 	act.Actor
-	port                 int
 	nextRequestId        int64
 	nextTransactionId    int64
 	candleFinishedEvents map[gen.Atom]gen.Ref
@@ -31,22 +32,19 @@ type query struct {
 	command string
 }
 
-func FactoryQuikBroker(
-	port int,
-) func() gen.ProcessBehavior {
-	return func() gen.ProcessBehavior {
-		return &QuikBroker{
-			port:                 port,
-			nextRequestId:        1,
-			nextTransactionId:    calculateStartTransId(),
-			candleFinishedEvents: make(map[gen.Atom]gen.Ref),
-			queriesInProgress:    make(map[int64]query),
-		}
-	}
+func FactoryQuikBroker() gen.ProcessBehavior {
+	return &QuikBroker{}
 }
 
 func (b *QuikBroker) Init(args ...any) error {
-	mainConn, err := createMainConnection(b.port)
+	port := args[0].(int)
+
+	b.nextRequestId = 1
+	b.nextTransactionId = calculateStartTransId()
+	b.candleFinishedEvents = make(map[gen.Atom]gen.Ref)
+	b.queriesInProgress = make(map[int64]query)
+
+	mainConn, err := createMainConnection(port)
 	if err != nil {
 		return err
 	}
@@ -57,7 +55,7 @@ func (b *QuikBroker) Init(args ...any) error {
 	}
 	b.mainConnId = mainConnId
 
-	callbackConn, err := createCallbackConnection(b.port + 1)
+	callbackConn, err := createCallbackConnection(port + 1)
 	if err != nil {
 		return err
 	}
@@ -148,14 +146,14 @@ func parseResponse(command string, data json.RawMessage) any {
 			return newParseError(err)
 		}
 		if m == nil {
-			return 0.0
+			return 0
 		}
-		// use json.Number?
+		// TODO use json.Number
 		pos, err := parseFloat(m["totalnet"])
 		if err != nil {
 			return newParseError(err)
 		}
-		return pos
+		return int(pos)
 	case "get_candles_from_data_source":
 		var candles []Candle
 		var err = json.Unmarshal(data, &candles)
@@ -164,7 +162,7 @@ func parseResponse(command string, data json.RawMessage) any {
 		}
 		// последний бар за сегодня может быть не завершен
 		if len(candles) > 0 &&
-			isToday(candles[len(candles)-1].Datetime.ToTime(model.MoexTimeZone)) {
+			isToday(candles[len(candles)-1].Datetime.ToTime(moex.TimeZone)) {
 			candles = candles[:len(candles)-1]
 		}
 		var res = make([]model.Candle, 0, len(candles))
@@ -185,14 +183,8 @@ func (b *QuikBroker) handleCallback(cj CallbackJson) {
 				return //err
 			}
 			var candle = convertToCandle(newCandle)
+			_ = candle
 			// TODO можно фильтровать слишком ранние бары
-			var candleFinishedEventName = b.getCandleFinishedEventName(candle.Interval, candle.SecurityCode)
-			var candleFinishedEventToken, ok = b.candleFinishedEvents[candleFinishedEventName]
-			if ok {
-				b.SendEvent(candleFinishedEventName, candleFinishedEventToken, model.CandleFinished{
-					Candle: candle,
-				})
-			}
 		}
 		return
 	}
@@ -210,7 +202,7 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		// async request
 		return nil, nil
 	case model.GetPositionRequest:
-		if req.Security.ClassCode == model.FuturesClassCode {
+		if req.Security.ClassCode == moex.FuturesClassCode {
 			err := b.makeRequest(from, ref,
 				RequestGetFuturesHolding(req.Portfolio.Firm, req.Portfolio.Portfolio, req.Security.Code, 0))
 			if err != nil {
@@ -235,26 +227,26 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		}
 		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
 		return true, nil
-	case model.GetCandleFinishedEvent:
-		var candleFinishedEventName = b.getCandleFinishedEventName(req.Timeframe, req.Ssecurity.Code)
-		if _, ok := b.candleFinishedEvents[candleFinishedEventName]; !ok {
-			candleFinishedEventToken, err := b.RegisterEvent(candleFinishedEventName, gen.EventOptions{}) //TODO options
-			if err != nil {
-				return err, nil
-			}
-			var candleInterval, ok = timeframeCodes[req.Timeframe]
-			if !ok {
-				return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
-			}
-			// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
-			err = b.makeRequest(from, gen.Ref{},
-				RequestSubscribeToCandles(req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
-			if err != nil {
-				return err, nil
-			}
-			b.candleFinishedEvents[candleFinishedEventName] = candleFinishedEventToken
+	/*case model.GetCandleFinishedEvent:
+	var candleFinishedEventName = b.getCandleFinishedEventName(req.Timeframe, req.Ssecurity.Code)
+	if _, ok := b.candleFinishedEvents[candleFinishedEventName]; !ok {
+		candleFinishedEventToken, err := b.RegisterEvent(candleFinishedEventName, gen.EventOptions{}) //TODO options
+		if err != nil {
+			return err, nil
 		}
-		return candleFinishedEventName, nil
+		var candleInterval, ok = timeframeCodes[req.Timeframe]
+		if !ok {
+			return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
+		}
+		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
+		err = b.makeRequest(from, gen.Ref{},
+			RequestSubscribeToCandles(req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
+		if err != nil {
+			return err, nil
+		}
+		b.candleFinishedEvents[candleFinishedEventName] = candleFinishedEventToken
+	}
+	return candleFinishedEventName, nil*/
 	case model.GetLastCandlesRequest:
 		var candleInterval, ok = timeframeCodes[req.Timeframe]
 		if !ok {

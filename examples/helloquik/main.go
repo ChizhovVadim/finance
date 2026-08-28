@@ -1,8 +1,8 @@
 package main
 
 import (
+	"finance/model"
 	"finance/trader/brokerquik"
-	"finance/trader/model"
 	"flag"
 	"fmt"
 	"time"
@@ -36,7 +36,7 @@ func run() error {
 	}
 
 	var brokerName = gen.Atom("quik")
-	node.SpawnRegister(brokerName, brokerquik.FactoryQuikBroker(port), gen.ProcessOptions{})
+	node.SpawnRegister(brokerName, brokerquik.FactoryQuikBroker, gen.ProcessOptions{}, port)
 	node.Send(brokerName, model.BrokerMessageInfoRequest{Message: "Где деньги, Лебовски?"})
 
 	node.Wait()

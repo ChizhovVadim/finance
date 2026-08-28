@@ -2,7 +2,8 @@ package brokerquik
 
 import (
 	"errors"
-	"finance/trader/model"
+	"finance/internal/moex"
+	"finance/model"
 	"math"
 	"net"
 	"strconv"
@@ -19,7 +20,7 @@ func convertToCandle(item Candle) model.Candle {
 	return model.Candle{
 		Interval:     "TODO",
 		SecurityCode: item.SecCode,
-		DateTime:     item.Datetime.ToTime(model.MoexTimeZone),
+		DateTime:     item.Datetime.ToTime(moex.TimeZone),
 		OpenPrice:    item.Open,
 		HighPrice:    item.High,
 		LowPrice:     item.Low,

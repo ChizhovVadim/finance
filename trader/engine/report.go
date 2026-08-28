@@ -1,6 +1,7 @@
-package monitoring
+package engine
 
 import (
+	"finance/model"
 	"fmt"
 	"io"
 	"strings"
@@ -9,6 +10,7 @@ import (
 )
 
 type Report struct {
+	Signals    []model.Signal
 	Portfolios []PortfolioInfo
 	Positions  []PoitionInfo
 }
@@ -36,6 +38,19 @@ func formatReport(r Report) string {
 	var sb = &strings.Builder{}
 
 	var w = newTabWriter(sb)
+	fmt.Fprintf(w, "Signal\tDeadline\tPrice\tPosition\t\n")
+	for _, signal := range r.Signals {
+		fmt.Fprintf(w, "%v\t%v\t%v\t%.4f\t\n",
+			signal.Name,
+			signal.Deadline.Format("2006-01-02 15:04"),
+			signal.Price,
+			signal.Value,
+		)
+	}
+	w.Flush()
+	fmt.Fprintln(sb, "Total signals:", len(r.Signals))
+
+	w = newTabWriter(sb)
 	fmt.Fprintf(w, "Client\tPortfolio\tAmount\tVarMargin\tVarMarginRatio\tUsedRatio\t\n")
 	for _, portfolio := range r.Portfolios {
 		fmt.Fprintf(w, "%v\t%v\t%.0f\t%.0f\t%.1f\t%.1f\t\n",

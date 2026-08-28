@@ -11,7 +11,7 @@ go run ./examples/helloquik -port 34132
 
 Генерация случайных сигналов и их исполнение "на бумаге".
 ```
-go run ./examples/tradermock
+go run ./examples/trader
 ```
 
 ## Ссылки

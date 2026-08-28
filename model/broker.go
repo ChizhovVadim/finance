@@ -1,10 +1,8 @@
 package model
 
-import "ergo.services/ergo/gen"
-
 type Portfolio struct {
+	// MultyBroker использует это поле для маршрутизации клиентов
 	Client    string
-	Broker    gen.Atom
 	Firm      string
 	Portfolio string
 }
@@ -42,35 +40,4 @@ type PortfolioLimits struct {
 	VarMargin float64
 	// Накопленная вариационная маржа
 	AccVarMargin float64
-}
-
-type BrokerMessageInfoRequest struct {
-	Message string
-}
-
-type GetPortfolioLimitsRequest struct {
-	Portfolio Portfolio
-}
-
-type GetPositionRequest struct {
-	Portfolio Portfolio
-	Security  Security
-}
-
-type RegisterOrderRequest struct {
-	Order Order
-}
-
-type GetCandleFinishedEvent struct {
-	Ssecurity Security
-	Timeframe string
-}
-
-type GetLastCandlesRequest struct {
-	Ssecurity Security
-	Timeframe string
-}
-
-type CandleFinished struct {
-	Candle Candle
 }
