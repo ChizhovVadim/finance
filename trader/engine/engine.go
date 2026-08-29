@@ -13,8 +13,6 @@ type shouldCheckStatus struct{}
 type Engine struct {
 	act.Actor
 	start                    time.Time
-	brokers                  map[string]gen.PID
-	marketdata               gen.PID
 	signals                  []gen.PID
 	strategies               []StrategyService
 	waitingShouldCheckStatus bool
@@ -25,21 +23,9 @@ func FactoryEngine() gen.ProcessBehavior {
 }
 
 func (eng *Engine) Init(args ...any) error {
-	spec := args[0].(EngineSpec)
-
 	eng.start = time.Now()
 
-	eng.brokers = make(map[string]gen.PID)
-	for _, clientSpec := range spec.Clients {
-		pid, err := eng.Spawn(clientSpec.FactoryBroker, gen.ProcessOptions{}, clientSpec.Args...)
-		if err != nil {
-			return err
-		}
-		eng.brokers[clientSpec.Name] = pid
-	}
-	if spec.MarketData != "" {
-		eng.marketdata = eng.brokers[spec.MarketData]
-	}
+	spec := args[0].(EngineSpec)
 
 	for _, signalSpec := range spec.Signals {
 		pid, err := eng.Spawn(signalSpec.FactorySignal, gen.ProcessOptions{}, signalSpec.Args...)
@@ -85,20 +71,8 @@ func (eng *Engine) HandleMessage(from gen.PID, message any) error {
 			var strategy = &eng.strategies[i]
 			eng.onSignal(strategy, message)
 		}
-	case model.Candle:
-		if message.DateTime.Add(10 * time.Minute).After(eng.start) {
-			eng.Log().Info("New candle %v", message)
-		}
-		// TODO SendEvent?
-		/*for i := range eng.signals {
-			eng.onCandle(&eng.signals[i], message)
-		}*/
 	}
 	return nil
-}
-
-func (eng *Engine) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error) {
-	return gen.ErrUnsupported, nil
 }
 
 func (eng *Engine) Terminate(reason error) {

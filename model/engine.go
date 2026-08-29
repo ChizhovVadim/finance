@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"ergo.services/ergo/gen"
 )
 
 type Signal struct {
@@ -12,3 +14,12 @@ type Signal struct {
 }
 
 type GetStatusRequest struct{}
+
+type GetCandleFinishedRequest struct {
+	Ssecurity Security
+	Timeframe string
+}
+
+type GetCandleFinishedResponse struct {
+	EventName gen.Atom
+}

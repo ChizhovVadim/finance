@@ -1,5 +1,11 @@
 package model
 
+import "ergo.services/ergo/gen"
+
+const (
+	MultyBroker = gen.Atom("MultyBroker")
+)
+
 type BrokerMessageInfoRequest struct {
 	Message string
 }

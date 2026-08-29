@@ -7,16 +7,8 @@ import (
 )
 
 type EngineSpec struct {
-	Clients    []ClientSpec
-	MarketData string
 	Signals    []SignalSpec
 	Strategies []StrategySpec
-}
-
-type ClientSpec struct {
-	Name          string
-	FactoryBroker gen.ProcessFactory
-	Args          []any
 }
 
 type SignalSpec struct {

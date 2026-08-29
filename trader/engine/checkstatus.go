@@ -19,7 +19,7 @@ func (eng *Engine) checkStatus() {
 	}
 	for i := range eng.strategies {
 		var strategy = &eng.strategies[i]
-		resp, err := eng.Call(eng.brokers[strategy.portfolio.Client], model.GetPositionRequest{
+		resp, err := eng.Call(model.MultyBroker, model.GetPositionRequest{
 			Portfolio: strategy.portfolio,
 			Security:  strategy.security,
 		})
@@ -48,7 +48,7 @@ func (eng *Engine) checkStatus() {
 		}
 		visitedPortfolios[portfolio.Portfolio] = struct{}{}
 
-		resp, err := eng.Call(eng.brokers[portfolio.Client], model.GetPortfolioLimitsRequest{
+		resp, err := eng.Call(model.MultyBroker, model.GetPortfolioLimitsRequest{
 			Portfolio: portfolio,
 		})
 		if err != nil {

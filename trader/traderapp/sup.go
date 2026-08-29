@@ -1,6 +1,8 @@
 package traderapp
 
 import (
+	"finance/model"
+	"finance/trader/brokermulty"
 	"finance/trader/engine"
 
 	"ergo.services/ergo/act"
@@ -28,6 +30,11 @@ func (s *traderSup) Init(args ...any) (act.SupervisorSpec, error) {
 
 	// add children
 	spec.Children = []act.SupervisorChildSpec{
+		{
+			Name:    gen.Atom(model.MultyBroker),
+			Factory: brokermulty.FactoryMultyBroker,
+			Args:    []any{options.MultyBrokerSpec},
+		},
 		{
 			Name:    gen.Atom("TradingEngine"),
 			Factory: engine.FactoryEngine,

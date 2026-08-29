@@ -2,6 +2,7 @@ package main
 
 import (
 	"finance/model"
+	"finance/trader/brokermulty"
 	"finance/trader/brokerpaper"
 	"finance/trader/engine"
 	"finance/trader/signalrandom"
@@ -17,12 +18,14 @@ func main() {
 	var securitySi = model.Security{Name: "Si-9.26", Code: "SiU6", Lever: 1}
 
 	var traderOptions = traderapp.Options{
-		EngineSpec: engine.EngineSpec{
-			Clients: []engine.ClientSpec{
+		MultyBrokerSpec: brokermulty.MultyBrokerSpec{
+			Clients: []brokermulty.ClientSpec{
 				{Name: "client_fake", FactoryBroker: brokerpaper.FactoryPaperBroker},
 				//{Name: "client_myquik", FactoryBroker: brokerquik.FactoryQuikBroker, Args: []any{34132}}, //port
 			},
 			//MarketData: "client_myquik",
+		},
+		EngineSpec: engine.EngineSpec{
 			Signals: []engine.SignalSpec{
 				{FactorySignal: signalrandom.FactorySignalRandom, Args: []any{"signal_random"}},
 			},

@@ -19,11 +19,10 @@ type messageTCP struct {
 
 type QuikBroker struct {
 	act.Actor
-	nextRequestId        int64
-	nextTransactionId    int64
-	candleFinishedEvents map[gen.Atom]gen.Ref
-	mainConnId           gen.Alias
-	queriesInProgress    map[int64]query
+	nextRequestId     int64
+	nextTransactionId int64
+	mainConnId        gen.Alias
+	queriesInProgress map[int64]query
 }
 
 type query struct {
@@ -41,7 +40,6 @@ func (b *QuikBroker) Init(args ...any) error {
 
 	b.nextRequestId = 1
 	b.nextTransactionId = calculateStartTransId()
-	b.candleFinishedEvents = make(map[gen.Atom]gen.Ref)
 	b.queriesInProgress = make(map[int64]query)
 
 	mainConn, err := createMainConnection(port)
@@ -227,26 +225,6 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		}
 		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
 		return true, nil
-	/*case model.GetCandleFinishedEvent:
-	var candleFinishedEventName = b.getCandleFinishedEventName(req.Timeframe, req.Ssecurity.Code)
-	if _, ok := b.candleFinishedEvents[candleFinishedEventName]; !ok {
-		candleFinishedEventToken, err := b.RegisterEvent(candleFinishedEventName, gen.EventOptions{}) //TODO options
-		if err != nil {
-			return err, nil
-		}
-		var candleInterval, ok = timeframeCodes[req.Timeframe]
-		if !ok {
-			return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
-		}
-		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
-		err = b.makeRequest(from, gen.Ref{},
-			RequestSubscribeToCandles(req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
-		if err != nil {
-			return err, nil
-		}
-		b.candleFinishedEvents[candleFinishedEventName] = candleFinishedEventToken
-	}
-	return candleFinishedEventName, nil*/
 	case model.GetLastCandlesRequest:
 		var candleInterval, ok = timeframeCodes[req.Timeframe]
 		if !ok {
@@ -291,9 +269,4 @@ func (b *QuikBroker) makeRequest(from gen.PID, ref gen.Ref, requestQuik RequestQ
 		command: r.Command,
 	}
 	return nil
-}
-
-func (b *QuikBroker) getCandleFinishedEventName(interval, secCode string) gen.Atom {
-	interval = model.CandleIntervalMinutes5 //TODO implement
-	return gen.Atom(fmt.Sprintf("candleFinished_%v_%v_%v", b.Name(), interval, secCode))
 }

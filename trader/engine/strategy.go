@@ -17,7 +17,7 @@ type StrategyService struct {
 }
 
 func (eng *Engine) strategyInitAmount(strategy *StrategyService) error {
-	resp, err := eng.Call(eng.brokers[strategy.portfolio.Client], model.GetPortfolioLimitsRequest{
+	resp, err := eng.Call(model.MultyBroker, model.GetPortfolioLimitsRequest{
 		Portfolio: strategy.portfolio,
 	})
 	if err != nil {
@@ -42,7 +42,7 @@ func (eng *Engine) strategyInitAmount(strategy *StrategyService) error {
 }
 
 func (eng *Engine) strategyInitPosition(strategy *StrategyService) error {
-	resp, err := eng.Call(eng.brokers[strategy.portfolio.Client], model.GetPositionRequest{
+	resp, err := eng.Call(model.MultyBroker, model.GetPositionRequest{
 		Portfolio: strategy.portfolio,
 		Security:  strategy.security,
 	})
@@ -91,7 +91,7 @@ func (eng *Engine) onSignal(strategy *StrategyService, signal model.Signal) {
 		eng.SendAfter(eng.PID(), shouldCheckStatus{}, 10*time.Second)
 	}
 	_ = expectedBrokerPos
-	eng.Call(eng.brokers[strategy.portfolio.Client], model.RegisterOrderRequest{
+	eng.Call(model.MultyBroker, model.RegisterOrderRequest{
 		Order: model.Order{
 			Portfolio: strategy.portfolio,
 			Security:  strategy.security,

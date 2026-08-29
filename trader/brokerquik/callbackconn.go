@@ -46,6 +46,8 @@ func (conn *callbackConnection) Start() error {
 		}
 		// Для эффективности будем обрабатывать только избранные колбеки
 		if cj.Command == "NewCandle" {
+
+			//TODO conn.Send(model.MultyBroker, convertToCandle())
 			if err := conn.Send(conn.Parent(), cj); err != nil {
 				return err
 			}
