@@ -17,11 +17,21 @@ func (eng *Engine) checkStatus() {
 		}
 		r.Signals = append(r.Signals, resp.(model.Signal))
 	}
-	for i := range eng.strategies {
-		var strategy = &eng.strategies[i]
+	var plannedPositions []model.PlannedPosition
+	for _, strategyPID := range eng.strategies {
+		resp, err := eng.Call(strategyPID, model.GetStatusRequest{})
+		if err != nil {
+			return
+		}
+		if _, ok := resp.(error); ok {
+			return
+		}
+		plannedPositions = append(plannedPositions, resp.(model.PlannedPosition))
+	}
+	for _, pos := range plannedPositions {
 		resp, err := eng.Call(model.MultyBroker, model.GetPositionRequest{
-			Portfolio: strategy.portfolio,
-			Security:  strategy.security,
+			Portfolio: pos.Portfolio,
+			Security:  pos.Security,
 		})
 		if err != nil {
 			return
@@ -31,18 +41,17 @@ func (eng *Engine) checkStatus() {
 		}
 		var brokerPos = resp.(int)
 		r.Positions = append(r.Positions, PoitionInfo{
-			Client:    strategy.portfolio.Client,
-			Portfolio: strategy.portfolio.Portfolio,
-			Security:  strategy.security.Name,
-			Planned:   strategy.plannedPosition,
+			Client:    pos.Portfolio.Client,
+			Portfolio: pos.Portfolio.Portfolio,
+			Security:  pos.Security.Name,
+			Planned:   pos.Planned,
 			Actual:    brokerPos,
-			Ok:        brokerPos == strategy.plannedPosition,
+			Ok:        brokerPos == pos.Planned,
 		})
 	}
 	var visitedPortfolios = make(map[string]struct{})
-	for i := range eng.strategies {
-		var strategy = &eng.strategies[i]
-		var portfolio = strategy.portfolio
+	for _, pos := range plannedPositions {
+		var portfolio = pos.Portfolio
 		if _, found := visitedPortfolios[portfolio.Portfolio]; found {
 			continue
 		}

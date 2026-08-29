@@ -12,9 +12,8 @@ type shouldCheckStatus struct{}
 
 type Engine struct {
 	act.Actor
-	start                    time.Time
 	signals                  []gen.PID
-	strategies               []StrategyService
+	strategies               []gen.PID
 	waitingShouldCheckStatus bool
 }
 
@@ -23,8 +22,6 @@ func FactoryEngine() gen.ProcessBehavior {
 }
 
 func (eng *Engine) Init(args ...any) error {
-	eng.start = time.Now()
-
 	spec := args[0].(EngineSpec)
 
 	for _, signalSpec := range spec.Signals {
@@ -36,21 +33,11 @@ func (eng *Engine) Init(args ...any) error {
 	}
 
 	for _, strategySpec := range spec.Strategies {
-		var strategyService = StrategyService{
-			signalName: strategySpec.SignalName,
-			security:   strategySpec.Security,
-			portfolio:  strategySpec.Portfolio,
-			sizePolicy: strategySpec.SizePolicy,
-		}
-		err := eng.strategyInitAmount(&strategyService)
+		pid, err := eng.Spawn(strategySpec.FactoryStrategy, gen.ProcessOptions{}, strategySpec.Args...)
 		if err != nil {
 			return err
 		}
-		err = eng.strategyInitPosition(&strategyService)
-		if err != nil {
-			return err
-		}
-		eng.strategies = append(eng.strategies, strategyService)
+		eng.strategies = append(eng.strategies, pid)
 	}
 
 	eng.SendAfter(eng.PID(), shouldCheckStatus{}, 3*time.Second)
@@ -61,16 +48,16 @@ func (eng *Engine) Init(args ...any) error {
 }
 
 func (eng *Engine) HandleMessage(from gen.PID, message any) error {
-	switch message := message.(type) {
+	switch message.(type) {
+	case model.MonitoringRequest:
+		// Сообщение может прийти от многих стратегий, поэтому throttling.
+		if !eng.waitingShouldCheckStatus {
+			eng.waitingShouldCheckStatus = true
+			eng.SendAfter(eng.PID(), shouldCheckStatus{}, 10*time.Second)
+		}
 	case shouldCheckStatus:
 		eng.waitingShouldCheckStatus = false
 		eng.checkStatus()
-	case model.Signal:
-		eng.Log().Info("New signal %v", message)
-		for i := range eng.strategies {
-			var strategy = &eng.strategies[i]
-			eng.onSignal(strategy, message)
-		}
 	}
 	return nil
 }

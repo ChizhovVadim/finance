@@ -6,6 +6,7 @@ import (
 	"finance/trader/brokerpaper"
 	"finance/trader/engine"
 	"finance/trader/signalrandom"
+	"finance/trader/strategy"
 	"finance/trader/traderapp"
 	"fmt"
 	"time"
@@ -32,10 +33,15 @@ func main() {
 			Strategies: []engine.StrategySpec{
 				// Случайный сигнал можно протестировать на бумажном брокере
 				{
-					SignalName: "signal_random",
-					Security:   securitySi,
-					Portfolio:  model.Portfolio{Client: "client_fake", Firm: "SPBFUT", Portfolio: "account_fake"},
-					SizePolicy: engine.SizePolicy{LongLever: 9, ShortLever: 9, MaxLever: 9, Weight: 1},
+					FactoryStrategy: strategy.FactoryStrategy,
+					Args: []any{
+						strategy.StrategySpec{
+							SignalName: "signal_random",
+							Security:   securitySi,
+							Portfolio:  model.Portfolio{Client: "client_fake", Firm: "SPBFUT", Portfolio: "account_fake"},
+							SizePolicy: strategy.SizePolicy{LongLever: 9, ShortLever: 9, MaxLever: 9, Weight: 1},
+						},
+					},
 				},
 			},
 		},

@@ -13,6 +13,14 @@ type Signal struct {
 	Value    float64
 }
 
+type PlannedPosition struct {
+	Portfolio Portfolio
+	Security  Security
+	Planned   int
+}
+
+type MonitoringRequest struct{}
+
 type GetStatusRequest struct{}
 
 type GetCandleFinishedRequest struct {

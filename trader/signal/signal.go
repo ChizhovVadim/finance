@@ -10,10 +10,11 @@ import (
 
 type signal struct {
 	act.Actor
-	start         time.Time
-	name          string
-	advisor       IAdvisor
-	currentSignal model.Signal
+	start            time.Time
+	name             string
+	advisor          IAdvisor
+	signalEventToken gen.Ref
+	currentSignal    model.Signal
 }
 
 func FactorySignal() gen.ProcessBehavior {
@@ -32,6 +33,15 @@ func (sig *signal) Init(args ...any) error {
 		return err
 	}
 	sig.advisor = advisor
+
+	signalEventToken, err := sig.RegisterEvent(gen.Atom(sig.name),
+		gen.EventOptions{
+			Buffer: 1,
+		})
+	if err != nil {
+		return err
+	}
+	sig.signalEventToken = signalEventToken
 
 	err = sig.Send(model.MultyBroker, model.GetCandleFinishedRequest{
 		Security:  spec.Security,
@@ -95,8 +105,11 @@ func (sig *signal) onCandle(candle model.Candle) {
 		Price:    candle.ClosePrice,
 		Value:    prediction,
 	}
-	if sig.currentSignal.Deadline.Before(sig.start) {
+	if sig.currentSignal.Deadline.After(sig.start) {
+		sig.Log().Info("New signal %v", sig.currentSignal)
 		return
 	}
-	sig.Send(sig.Parent(), sig.currentSignal)
+	if sig.currentSignal.Deadline.After(time.Now()) {
+		sig.SendEvent(gen.Atom(sig.name), sig.signalEventToken, sig.currentSignal)
+	}
 }
