@@ -79,15 +79,15 @@ func (b *MultyBroker) HandleMessage(from gen.PID, message any) error {
 }
 
 func (b *MultyBroker) onCandleCallback(candle model.Candle) {
-	if candle.DateTime.Add(10 * time.Minute).After(b.start) {
-		b.Log().Debug("New candle %v", candle)
-	}
 	var candleFinishedEventName = getCandleFinishedEventName(candle.Interval, candle.SecurityCode)
 	candleFinishedEventToken, found := b.candleFinishedEvents[candleFinishedEventName]
 	if !found {
 		return
 	}
 	// TODO верификация баров
+	if candle.DateTime.Add(10 * time.Minute).After(b.start) {
+		b.Log().Debug("New candle %v", candle)
+	}
 	b.SendEvent(candleFinishedEventName, candleFinishedEventToken, candle)
 }
 

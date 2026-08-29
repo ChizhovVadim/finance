@@ -36,7 +36,7 @@ func (conn *mainConnection) Init(process gen.MetaProcess) error {
 }
 
 func (conn *mainConnection) Start() error {
-	defer conn.Log().Info("finish")
+	defer conn.Log().Debug("finish")
 	var quikCharmap = charmap.Windows1251
 	var reader = bufio.NewReader(transform.NewReader(conn.tcpConn, quikCharmap.NewDecoder()))
 	for {

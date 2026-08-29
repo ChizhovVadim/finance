@@ -107,9 +107,12 @@ func (sig *signal) onCandle(candle model.Candle) {
 	}
 	if sig.currentSignal.Deadline.After(sig.start) {
 		sig.Log().Info("New signal %v", sig.currentSignal)
-		return
 	}
 	if sig.currentSignal.Deadline.After(time.Now()) {
 		sig.SendEvent(gen.Atom(sig.name), sig.signalEventToken, sig.currentSignal)
 	}
+}
+
+func (sig *signal) Terminate(reason error) {
+	sig.Log().Info("terminated with reason: %s", reason)
 }

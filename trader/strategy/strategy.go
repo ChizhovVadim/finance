@@ -142,7 +142,11 @@ func (s *Strategy) onSignal(signal model.Signal) {
 	var expectedBrokerPos = s.plannedPosition
 	s.plannedPosition += volume
 	s.Send(s.Parent(), model.MonitoringRequest{})
-	_ = expectedBrokerPos
+	if !s.checkBrokerPos(expectedBrokerPos) {
+		// Ничего не делаем. Зовем старшего.
+		s.Log().Warning("check position failed")
+		return
+	}
 	s.Call(model.MultyBroker, model.RegisterOrderRequest{
 		Order: model.Order{
 			Portfolio: s.portfolio,
@@ -151,6 +155,26 @@ func (s *Strategy) onSignal(signal model.Signal) {
 			Price:     priceWithSlippage(signal.Price, volume),
 		},
 	})
+}
+
+func (s *Strategy) checkBrokerPos(expected int) bool {
+	resp, err := s.Call(model.MultyBroker, model.GetPositionRequest{
+		Portfolio: s.portfolio,
+		Security:  s.security,
+	})
+	if err != nil {
+		return false
+	}
+	if respError, ok := resp.(error); ok {
+		_ = respError
+		return false
+	}
+	var brokerPos = resp.(int)
+	return brokerPos == expected
+}
+
+func (s *Strategy) Terminate(reason error) {
+	s.Log().Info("terminated with reason: %s", reason)
 }
 
 func calcIdealPos(

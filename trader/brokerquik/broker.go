@@ -189,7 +189,7 @@ func (b *QuikBroker) handleCallback(cj CallbackJson) {
 }
 
 func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error) {
-	b.Log().Debug("received call from %s: %v", from, req)
+	//b.Log().Debug("received call from %s: %v", from, req)
 	switch req := req.(type) {
 	case model.GetPortfolioLimitsRequest:
 		err := b.makeRequest(from, ref,
