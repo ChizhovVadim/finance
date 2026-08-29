@@ -16,7 +16,7 @@ type Signal struct {
 type GetStatusRequest struct{}
 
 type GetCandleFinishedRequest struct {
-	Ssecurity Security
+	Security  Security
 	Timeframe string
 }
 

@@ -34,7 +34,7 @@ func (sig *signal) Init(args ...any) error {
 	sig.advisor = advisor
 
 	err = sig.Send(model.MultyBroker, model.GetCandleFinishedRequest{
-		Ssecurity: spec.Security,
+		Security:  spec.Security,
 		Timeframe: spec.CandleInterval,
 	})
 	if err != nil {
@@ -75,10 +75,10 @@ func (sig *signal) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error) {
 	return gen.ErrUnsupported, nil
 }
 
-func (a *signal) HandleEvent(event gen.MessageEvent) error {
+func (sig *signal) HandleEvent(event gen.MessageEvent) error {
 	switch message := event.Message.(type) {
 	case model.Candle:
-		a.onCandle(message)
+		sig.onCandle(message)
 		return nil
 	}
 	return nil

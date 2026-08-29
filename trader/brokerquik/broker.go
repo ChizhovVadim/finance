@@ -232,12 +232,20 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		}
 		const candleCount = 5_000 // Если не указывать размер, то может прийти слишком много баров и unmarshal большой json
 		err := b.makeRequest(from, ref,
-			RequestGetCandlesFromDataSource(req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval, candleCount))
+			RequestGetCandlesFromDataSource(req.Security.ClassCode, req.Security.Code, candleInterval, candleCount))
 		if err != nil {
 			return err, nil
 		}
 		// async request
 		return nil, nil
+	case model.SubscribeCandlesRequest:
+		var candleInterval, ok = timeframeCodes[req.Timeframe]
+		if !ok {
+			return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
+		}
+		b.makeRequest(from, gen.Ref{}, RequestSubscribeToCandles(req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
+		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
+		return true, nil
 	}
 	return gen.ErrUnsupported, nil
 }

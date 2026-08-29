@@ -49,19 +49,13 @@ func (b *MultyBroker) Init(args ...any) error {
 
 func (b *MultyBroker) HandleMessage(from gen.PID, message any) error {
 	switch message := message.(type) {
-	case model.Candle:
-		if message.DateTime.Add(10 * time.Minute).After(b.start) {
-			b.Log().Info("New candle %v", message)
+	case model.BrokerCallbackMessage:
+		switch callback := message.Message.(type) {
+		case model.Candle:
+			b.onCandleCallback(callback)
 		}
-		var candleFinishedEventName = getCandleFinishedEventName(message.Interval, message.SecurityCode)
-		candleFinishedEventToken, found := b.candleFinishedEvents[candleFinishedEventName]
-		if !found {
-			return nil
-		}
-		// TODO верификация баров
-		b.SendEvent(candleFinishedEventName, candleFinishedEventToken, message)
 	case model.GetCandleFinishedRequest:
-		var candleFinishedEventName = getCandleFinishedEventName(message.Timeframe, message.Ssecurity.Code)
+		var candleFinishedEventName = getCandleFinishedEventName(message.Timeframe, message.Security.Code)
 		if _, found := b.candleFinishedEvents[candleFinishedEventName]; !found {
 			candleFinishedEventToken, err := b.RegisterEvent(candleFinishedEventName,
 				gen.EventOptions{
@@ -71,9 +65,9 @@ func (b *MultyBroker) HandleMessage(from gen.PID, message any) error {
 				return err
 			}
 			b.candleFinishedEvents[candleFinishedEventName] = candleFinishedEventToken
-			err = b.prepareCandleFinished(message.Ssecurity, message.Timeframe, candleFinishedEventName, candleFinishedEventToken)
+			err = b.prepareCandleFinished(message.Security, message.Timeframe, candleFinishedEventName, candleFinishedEventToken)
 			if err != nil {
-				b.Log().Error("prepareCandleFinished %v %v %v", message.Ssecurity.Name, message.Timeframe, err)
+				b.Log().Error("prepareCandleFinished %v %v %v", message.Security.Name, message.Timeframe, err)
 				return nil
 			}
 		}
@@ -82,6 +76,19 @@ func (b *MultyBroker) HandleMessage(from gen.PID, message any) error {
 		})
 	}
 	return nil
+}
+
+func (b *MultyBroker) onCandleCallback(candle model.Candle) {
+	if candle.DateTime.Add(10 * time.Minute).After(b.start) {
+		b.Log().Debug("New candle %v", candle)
+	}
+	var candleFinishedEventName = getCandleFinishedEventName(candle.Interval, candle.SecurityCode)
+	candleFinishedEventToken, found := b.candleFinishedEvents[candleFinishedEventName]
+	if !found {
+		return
+	}
+	// TODO верификация баров
+	b.SendEvent(candleFinishedEventName, candleFinishedEventToken, candle)
 }
 
 func (b *MultyBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error) {
@@ -125,7 +132,7 @@ func (b *MultyBroker) prepareCandleFinished(
 	}
 
 	resp, err := b.Call(b.marketdata, model.GetLastCandlesRequest{
-		Ssecurity: security,
+		Security:  security,
 		Timeframe: timeframe,
 	})
 	if err != nil {
@@ -166,6 +173,10 @@ func candlesAfter(source []model.Candle, date time.Time) []model.Candle {
 }
 
 func getCandleFinishedEventName(interval, secCode string) gen.Atom {
+	//TODO temporary fix
+	if interval == "TODO" {
+		interval = model.CandleIntervalMinutes5
+	}
 	return gen.Atom(fmt.Sprintf("candleFinished_%v_%v",
 		interval, secCode))
 }

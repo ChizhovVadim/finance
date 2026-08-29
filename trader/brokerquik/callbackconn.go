@@ -3,6 +3,7 @@ package brokerquik
 import (
 	"bufio"
 	"encoding/json"
+	"finance/model"
 	"net"
 
 	"ergo.services/ergo/gen"
@@ -31,7 +32,7 @@ func (conn *callbackConnection) Init(process gen.MetaProcess) error {
 }
 
 func (conn *callbackConnection) Start() error {
-	defer conn.Log().Info("finish")
+	defer conn.Log().Debug("finish")
 	var quikCharmap = charmap.Windows1251
 	var reader = bufio.NewReader(transform.NewReader(conn.tcpConn, quikCharmap.NewDecoder()))
 	for {
@@ -44,14 +45,7 @@ func (conn *callbackConnection) Start() error {
 		if err != nil {
 			return err
 		}
-		// Для эффективности будем обрабатывать только избранные колбеки
-		if cj.Command == "NewCandle" {
-
-			//TODO conn.Send(model.MultyBroker, convertToCandle())
-			if err := conn.Send(conn.Parent(), cj); err != nil {
-				return err
-			}
-		}
+		conn.handleCallback(cj)
 	}
 }
 
@@ -69,4 +63,23 @@ func (conn *callbackConnection) Terminate(reason error) {
 
 func (conn *callbackConnection) HandleInspect(from gen.PID, item ...string) map[string]string {
 	return map[string]string{}
+}
+
+func (conn *callbackConnection) handleCallback(cj CallbackJson) {
+	// Для эффективности будем обрабатывать только избранные колбеки
+	if cj.Command == "NewCandle" {
+		if cj.Data == nil {
+			return
+		}
+		var quikCandle Candle
+		var err = json.Unmarshal(cj.Data, &quikCandle)
+		if err != nil {
+			return
+		}
+		var modelCandle = convertToCandle(quikCandle)
+		// TODO можно фильтровать слишком ранние бары
+		conn.Send(model.MultyBroker, model.BrokerCallbackMessage{
+			Message: modelCandle,
+		})
+	}
 }

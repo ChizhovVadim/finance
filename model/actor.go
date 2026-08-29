@@ -11,7 +11,7 @@ type BrokerMessageInfoRequest struct {
 }
 
 type GetLastCandlesRequest struct {
-	Ssecurity Security
+	Security  Security
 	Timeframe string
 }
 
@@ -31,4 +31,8 @@ type GetPositionRequest struct {
 
 type RegisterOrderRequest struct {
 	Order Order
+}
+
+type BrokerCallbackMessage struct {
+	Message any
 }
