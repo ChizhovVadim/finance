@@ -73,7 +73,6 @@ func (b *QuikBroker) HandleMessage(from gen.PID, message any) error {
 	case model.BrokerMessageInfoRequest:
 		_ = b.makeRequest(from, gen.Ref{}, RequestMessage(message.Message))
 	case CallbackJson:
-		b.handleCallback(message)
 	case messageTCP:
 		err := b.handleResponse(message)
 		if err != nil {
@@ -170,22 +169,6 @@ func parseResponse(command string, data json.RawMessage) any {
 		return res
 	}
 	return errors.New("not implemented")
-}
-
-func (b *QuikBroker) handleCallback(cj CallbackJson) {
-	if cj.Command == "NewCandle" {
-		if cj.Data != nil {
-			var newCandle Candle
-			var err = json.Unmarshal(cj.Data, &newCandle)
-			if err != nil {
-				return //err
-			}
-			var candle = convertToCandle(newCandle)
-			_ = candle
-			// TODO можно фильтровать слишком ранние бары
-		}
-		return
-	}
 }
 
 func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error) {

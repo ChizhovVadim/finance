@@ -99,6 +99,7 @@ func (sig *signal) onCandle(candle model.Candle) {
 	if !predictionOk {
 		return
 	}
+	var signalValueChanged = sig.currentSignal.Value != prediction
 	sig.currentSignal = model.Signal{
 		Name:     sig.name,
 		Deadline: candle.DateTime.Add(9 * time.Minute), //9 минут от открытия бара, 4 минуты от закрытия бара.
@@ -106,7 +107,11 @@ func (sig *signal) onCandle(candle model.Candle) {
 		Value:    prediction,
 	}
 	if sig.currentSignal.Deadline.After(sig.start) {
-		sig.Log().Info("New signal %v", sig.currentSignal)
+		if signalValueChanged {
+			sig.Log().Info("New signal %v", sig.currentSignal)
+		} else {
+			sig.Log().Debug("New signal %v", sig.currentSignal)
+		}
 	}
 	if sig.currentSignal.Deadline.After(time.Now()) {
 		sig.SendEvent(gen.Atom(sig.name), sig.signalEventToken, sig.currentSignal)

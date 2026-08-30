@@ -1,6 +1,7 @@
 package main
 
 import (
+	"finance/internal/moex"
 	"finance/model"
 	"finance/trader/brokermulty"
 	"finance/trader/brokerpaper"
@@ -16,7 +17,11 @@ import (
 )
 
 func main() {
-	var securitySi = model.Security{Name: "Si-9.26", Code: "SiU6", Lever: 1}
+	var securitySi, err = moex.GetSecurityInfo("Si-9.26")
+	if err != nil {
+		fmt.Println("Unable to find security", err)
+		return
+	}
 
 	var traderOptions = traderapp.Options{
 		MultyBrokerSpec: brokermulty.MultyBrokerSpec{
