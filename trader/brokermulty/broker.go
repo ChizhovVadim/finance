@@ -43,7 +43,7 @@ func (b *MultyBroker) Init(args ...any) error {
 		b.marketdata = b.brokers[spec.MarketData]
 	}
 
-	b.Log().Info("started")
+	b.Log().Info("started total clients: %v", len(b.brokers))
 	return nil
 }
 

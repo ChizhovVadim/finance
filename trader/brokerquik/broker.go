@@ -115,13 +115,13 @@ func newParseError(child error) error {
 func parseResponse(command string, data json.RawMessage) any {
 	switch command {
 	case "getPortfolioInfoEx":
+		if data == nil {
+			return errors.New("portfolio not found")
+		}
 		var m map[string]any
 		var err = json.Unmarshal(data, &m)
 		if err != nil {
 			return newParseError(err)
-		}
-		if m == nil {
-			return errors.New("portfolio not found")
 		}
 		startLimitOpenPos, err := parseFloat(m["start_limit_open_pos"])
 		if err != nil {
@@ -137,13 +137,14 @@ func parseResponse(command string, data json.RawMessage) any {
 			AccVarMargin:      accVarMargin,
 		}
 	case "getFuturesHolding":
+		if data == nil {
+			// Можно как в динамически типизированных языках вернуть nil?
+			return 0
+		}
 		var m map[string]any
 		var err = json.Unmarshal(data, &m)
 		if err != nil {
 			return newParseError(err)
-		}
-		if m == nil {
-			return 0
 		}
 		// TODO use json.Number
 		pos, err := parseFloat(m["totalnet"])

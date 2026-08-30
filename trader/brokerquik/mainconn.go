@@ -44,6 +44,9 @@ func (conn *mainConnection) Start() error {
 		if err != nil {
 			return err
 		}
+		if len(incoming) < 2_048 {
+			conn.Log().Trace("response %v", incoming)
+		}
 		message := messageTCP{
 			Data: []byte(incoming),
 		}
@@ -66,6 +69,7 @@ func (conn *mainConnection) HandleMessage(from gen.PID, message any) error {
 	if _, err := conn.writer.Write([]byte("\r\n")); err != nil {
 		return err
 	}
+	//conn.Log().Trace("request %v", string(messageTcp.Data))
 	return nil
 }
 

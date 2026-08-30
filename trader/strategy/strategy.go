@@ -38,20 +38,9 @@ func (s *Strategy) Init(args ...any) error {
 	if err := s.initPosition(); err != nil {
 		return err
 	}
-
-	events, err := s.MonitorEvent(gen.Event{
-		Name: gen.Atom(s.signalName),
-	})
-	if err != nil {
+	if err := s.initSignal(); err != nil {
 		return err
 	}
-
-	// возможно безопаснее вначале убедиться, что лимиты загрузились верные и не исполнять сразу текущий сигнал
-	_ = events
-
-	// if len(events) > 0 {
-	// 	s.HandleEvent(events[len(events)-1])
-	// }
 
 	s.Log().Info("started signal: %v client: %v account: %v security: %v amountAvailable: %v position: %v",
 		s.signalName,
@@ -95,6 +84,28 @@ func (s *Strategy) initPosition() error {
 		return respErr
 	}
 	s.plannedPosition = resp.(int)
+	return nil
+}
+
+func (s *Strategy) initSignal() error {
+	// хотим проверить запуск стратегии без исполнения сигналов
+	if s.signalName == "" {
+		return nil
+	}
+
+	events, err := s.MonitorEvent(gen.Event{
+		Name: gen.Atom(s.signalName),
+	})
+	if err != nil {
+		return err
+	}
+
+	// возможно безопаснее вначале убедиться, что лимиты загрузились верные и не исполнять сразу текущий сигнал
+	_ = events
+
+	// if len(events) > 0 {
+	// 	s.HandleEvent(events[len(events)-1])
+	// }
 	return nil
 }
 
