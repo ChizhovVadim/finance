@@ -1,6 +1,12 @@
 package traderapp
 
-import "ergo.services/ergo/gen"
+import (
+	"finance/model"
+	"finance/trader/brokermulty"
+	"finance/trader/engine"
+
+	"ergo.services/ergo/gen"
+)
 
 func CreateTraderApp(options Options) gen.ApplicationBehavior {
 	return &TraderApp{
@@ -17,12 +23,17 @@ func (app *TraderApp) Load(node gen.Node, args ...any) (gen.ApplicationSpec, err
 	return gen.ApplicationSpec{
 		Name:        "myapp",
 		Description: "description of this application",
-		Mode:        gen.ApplicationModeTransient,
+		Mode:        gen.ApplicationModeTemporary,
 		Group: []gen.ApplicationMemberSpec{
 			{
-				Name:    "mysup",
-				Factory: factoryTraderSup,
-				Args:    []any{app.options},
+				Name:    model.MultyBroker,
+				Factory: brokermulty.FactoryMultyBroker,
+				Args:    []any{app.options.MultyBrokerSpec},
+			},
+			{
+				Name:    gen.Atom("TradingEngine"),
+				Factory: engine.FactoryEngine,
+				Args:    []any{app.options.EngineSpec},
 			},
 		},
 	}, nil

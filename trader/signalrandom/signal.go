@@ -64,3 +64,7 @@ func (a *signalRandom) HandleCall(from gen.PID, ref gen.Ref, req any) (any, erro
 	}
 	return gen.ErrUnsupported, nil
 }
+
+func (a *signalRandom) Terminate(reason error) {
+	a.Log().Info("terminated with reason: %s", reason)
+}

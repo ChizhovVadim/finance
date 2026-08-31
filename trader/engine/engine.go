@@ -25,7 +25,7 @@ func (eng *Engine) Init(args ...any) error {
 	spec := args[0].(EngineSpec)
 
 	for _, signalSpec := range spec.Signals {
-		pid, err := eng.Spawn(signalSpec.FactorySignal, gen.ProcessOptions{}, signalSpec.Args...)
+		pid, err := eng.Spawn(signalSpec.FactorySignal, gen.ProcessOptions{LinkParent: true}, signalSpec.Args...)
 		if err != nil {
 			return err
 		}
@@ -33,7 +33,7 @@ func (eng *Engine) Init(args ...any) error {
 	}
 
 	for _, strategySpec := range spec.Strategies {
-		pid, err := eng.Spawn(strategySpec.FactoryStrategy, gen.ProcessOptions{}, strategySpec.Args...)
+		pid, err := eng.Spawn(strategySpec.FactoryStrategy, gen.ProcessOptions{LinkParent: true}, strategySpec.Args...)
 		if err != nil {
 			return err
 		}

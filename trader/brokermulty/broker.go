@@ -33,7 +33,7 @@ func (b *MultyBroker) Init(args ...any) error {
 	b.historyMarketData = spec.HistoryMarketData
 
 	for _, clientSpec := range spec.Clients {
-		pid, err := b.Spawn(clientSpec.FactoryBroker, gen.ProcessOptions{}, clientSpec.Args...)
+		pid, err := b.Spawn(clientSpec.FactoryBroker, gen.ProcessOptions{LinkParent: true}, clientSpec.Args...)
 		if err != nil {
 			return err
 		}
