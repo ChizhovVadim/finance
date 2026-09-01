@@ -150,7 +150,7 @@ func (b *MultyBroker) prepareCandleFinished(
 	}
 
 	resp, err = b.Call(b.marketdata, model.SubscribeCandlesRequest{
-		Ssecurity: security,
+		Security:  security,
 		Timeframe: timeframe,
 	})
 	if err != nil {

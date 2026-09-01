@@ -227,7 +227,7 @@ func (b *QuikBroker) HandleCall(from gen.PID, ref gen.Ref, req any) (any, error)
 		if !ok {
 			return fmt.Errorf("timeframe not supported %v", req.Timeframe), nil
 		}
-		b.makeRequest(from, gen.Ref{}, RequestSubscribeToCandles(req.Ssecurity.ClassCode, req.Ssecurity.Code, candleInterval))
+		b.makeRequest(from, gen.Ref{}, RequestSubscribeToCandles(req.Security.ClassCode, req.Security.Code, candleInterval))
 		// Чтобы не заблокироваться, не ждем ответа от брокера, а сразу продолжаем работу.
 		return true, nil
 	}

@@ -58,7 +58,7 @@ func (sig *signal) Init(args ...any) error {
 func (sig *signal) HandleMessage(from gen.PID, message any) error {
 	switch message := message.(type) {
 	case model.GetCandleFinishedResponse:
-		events, err := sig.MonitorEvent(gen.Event{
+		events, err := sig.LinkEvent(gen.Event{
 			Name: message.EventName,
 		})
 		if err != nil {

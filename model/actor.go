@@ -16,7 +16,7 @@ type GetLastCandlesRequest struct {
 }
 
 type SubscribeCandlesRequest struct {
-	Ssecurity Security
+	Security  Security
 	Timeframe string
 }
 
